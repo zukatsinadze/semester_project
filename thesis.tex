@@ -27,6 +27,11 @@
 \usepackage{listings}
 \usepackage{color}
 \usepackage{xcolor}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{subcaption}
+
+
 
 \definecolor{dkgreen}{rgb}{0,0.6,0}
 \definecolor{gray}{rgb}{0.5,0.5,0.5}
@@ -107,7 +112,7 @@ generated drivers.
 Complex software systems are susceptible to various types of input-based bugs.
 Some of these bugs might be vulnerabilities that can be exploited by the 
 adversary to gain unauthorized access, execute arbitrary code, or mount
-a denial-of-service (DoS) attack. 
+a \emph{denial-of-service} (DoS) attack. 
 
 Fuzzing is a software testing technique that involves executing the 
 program with random inputs to catch vulnerabilities and bugs. The idea behind
@@ -227,7 +232,7 @@ It instruments the program under test to collect coverage information
 during execution and uses this feedback to guide the generation of new inputs. 
 By utilizing coverage information, coverage-guided grey box fuzzing tends 
 to be more effective at finding complex vulnerabilities and exploring deeper
-program states. Figures \ref{fig:blackbox_diag} and \ref{fig:coverage_guided_diag}
+program states. \autoref{fig:blackbox_diag} and \autoref{fig:coverage_guided_diag}
 demonstrate the difference between the two techniques. 
 
 
@@ -251,7 +256,7 @@ but they may miss inputs that trigger bugs but do not result in a crash.
 For instance, scenarios like out-of-bounds reads or writes may not 
 cause a crash. This is where sanitizers play a crucial role.
 
-\section{Sanitization TODO: might remove this section}
+\section{Sanitization}
 
 Sanitizers are oracles that mark a bug. They instrument programs compile-time
 by adding different checks to enforce policies during run-time. 
@@ -294,9 +299,9 @@ int main() {
 \end{lstlisting}
 
 If we compile this code with no sanitizer flags and run it, we would get 
-an output that looks something like this: \lstinline{Value at index 20: ?}, where `'?'' is some
+an output that looks something like this: \lstinline{Value at index 20: ?}, where \lstinline{?} is some
 garbage value. However, compiling it with \lstinline{-fsanitize=address} flag will
-result in a crash: TODO: where the fuck do these white lines come from
+result in a crash:
 
 \lstset{caption={}, label=asan-crash}
 \begin{lstlisting}[style=DOS]
@@ -590,7 +595,7 @@ from a single consumer, and created drivers are then
 tested dynamically. In contrast, FuzzGen iterates CFG, i.e., minimizing 
 consumers. Secondly, FUDGE creates multiple small fuzz drivers from snippets,
 while FuzzGen merges multiple consumers into single
-$A^{2}DG$ allowing the synthesis of arbitrary length drivers 
+$A^{2}DG$, allowing the synthesis of arbitrary length drivers 
 (any random walk through this graph is a possible driver). 
 FuzzGen drivers are larger and more generic, allowing 
 to create complex API sequences.
@@ -641,7 +646,7 @@ which provides a scheduling interface for the fuzzer.
 The fuzzer can use this interface to test independent 
 sets of API usage during the fuzzing process. While the 
 abstract of the paper suggests a promising idea and 
-presents short evaluation results, it's important to note 
+presents short evaluation results, it is important to note 
 that the paper is currently under embargo until the 
 32nd USENIX Security Symposium, and further details and 
 findings are not yet publicly available.
@@ -792,7 +797,7 @@ effectively identify and eliminate duplicate crashes. The tool first
 focuses on removing duplicate crashes, ensuring that each unique crash is 
 represented only once in the final set. Next, CASR uses a hierarchical 
 clustering method to group the remaining crashes based on their
-similarities, see figure \ref{fig:callstacks}. 
+similarities, see \autoref{fig:callstacks}. 
 
 \begin{figure}[htb]
 	\centering
@@ -819,7 +824,7 @@ misleading inputs.
 After deduplication and clustering are done, we are left with a number of
 unique crashes. Unfortunately, a human analyst needs to go through these
 inputs to determine whether it is a bug in a library or in a driver 
-itself (false positive) and assess if it's an exploitable vulnerability.
+itself (false positive) and assess if it is an exploitable vulnerability.
 
 \section{Coverage metrics}
 The first step to getting coverage metrics is corpora minimization. Corpora 
@@ -865,10 +870,10 @@ interest.
 One important metric is the maximum depth reached by the fuzzer,
 which indicates the furthest level of function calls from "LLVMFuzzOneInput".
 This metric provides an understanding of the fuzzer's ability to explore
-deeper levels of the library. Additionally, average depth provides
-a measure of the overall depth of function calls. We can also combine
-these metrics with per-function coverage to see how being deep in
-the library correlates with how much the function is fuzzed.
+deeper levels of the library. Additionally, the average of max depths of 
+each function provides a measure of the overall depth of function calls. 
+We can also combine these metrics with per-function coverage to see how 
+being deep in the library correlates with how much the function is fuzzed.
 
 Furthermore, by analyzing the stack trace dump, we can identify the 
 APIs directly called within the driver code. 
@@ -881,6 +886,8 @@ We currently do not infer this number statically, but it is planned
 to add that feature, since such information would be useful for
 more flexible driver generation tools to create drivers that are 
 similar to ones created by other tools for direct comparison. 
+
+
 
 
 \begin{figure}[htb]
@@ -901,32 +908,486 @@ similar to ones created by other tools for direct comparison.
 \chapter{Evaluation}
 %%%%%%%%%%%%%%%%%%%%
 
-\textbf{Evaluation Environment:} Describe the machine used. Set-up (single core per docker). Campaing length (1h). Etc.
+We have evaluated automatically generated drivers from UTopia and manually 
+written ones from OSS-Fuzz. Experiments were run on Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz 
+with 16GiB memory and 6 physical cores. 
+
+Each driver was compiled with ASan and fuzzer ran 8 hours in an isolated docker container 
+with assigned CPU for 5 iterations. 
+
+For fairness to OSS-Fuzz we used existing initial corpora when available,
+while UTopia drivers started fuzzing with a small corpus that the tool
+extracts from unit tests.
+
+In this chapter, we present our findings.
 
 
-One section for each experiment, ideally one per tool.
+\section{Target Libraries}
+In our experiments, we focused on evaluating five target libraries: 
+assimp, libaom, libhtp, libvpx, and wabt. These libraries were chosen 
+to provide a diverse range of characteristics, including the number of 
+lines of code and programming languages used (C and C++). Furthermore, 
+both UTopia and OSS-Fuzz have found vulnerabilities in these libraries.
+
+To gather information about the libraries, we performed a static analysis.
+In \autoref{tab:library_comparison}, 
+"Exposed APIs" refers to the total number of APIs exposed by the library, 
+and Callback/Complex/Vararg provides the breakdown of APIs that expect 
+callback, complex, or vararg parameters.
+
+The analysis of the libraries' exposed functions provides valuable
+insights into their API characteristics. From the metrics presented 
+in the table, it is evident that only a small number of exposed 
+functions expect vararg parameters. Furthermore, we have manually 
+verified that most of these vararg APIs are used for logging purposes. 
+This indicates that vararg parameters are not extensively used 
+within the libraries' APIs.
+
+Additionally, the analysis reveals that the libraries have limited
+usage scenarios where callback functions need to be provided by the users 
+as API parameters. It is possible that the libraries follow a
+more straightforward design approach.
+
+On the other hand, a significant proportion of the exposed APIs 
+expect complex data types as parameters. This indicates that  
+libraries often require structured or composite data to perform 
+their intended functionality.
 
 
-Utopia coverage with and without initial seeds.
+\begin{table}[h]
+\centering
+\caption{LoC = Lines of Code, PL = Programming Language, U = UTopia, O = OSS-Fuzz}
+\label{tab:library_comparison}
+\begin{tabular}{|l|c|c|c|c|c|c|c|c|}
+\hline
+\textbf{Library} & \textbf{LoC} & \textbf{PL} & \textbf{U drivers} & \textbf{O drivers} & \textbf{Exposed APIs} & \textbf{Callbacks} & \textbf{Complex Types} & \textbf{Varargs}\\
+\hline
+assimp           & 356k        & C++ & 7 & 1 & 4269 & 0 & 253 & 2\\
+libaom           & 363k        & C & 6 & 1 & 5065 & 0 & 2132 & 2\\
+libhtp           & 20k         & C & 3 & 2 & 386 & 0 & 341 & 1\\
+libvpx           & 248k        & C & 4 & 2 & 1467 & 0 & 631 & 2\\
+wabt             & 47k         & C++ & 5 & 5 & 1034 & 0 & 697 & 5\\
+\hline
+\end{tabular}
+\end{table}
+
+\section{Crashes}
+
+While UTopia-generated drivers resulted in significantly higher
+number of reports compared to manually written drivers, it is
+important to note that a large portion of these reports are false positives. 
+We managed to reproduce 7 bugs that were already reported by UTopia team
+to the maintainers of these libraries. 
+
+When analyzing the non-reproducible reports for the UTopia-generated drivers, 
+it is observed that the numbers are relatively high, see \autoref{fig:utopia_non_rep}. This can be attributed 
+to the inherent challenges of in-process fuzzing engines, where factors such as 
+incorrect state resetting sporadic crashes. On the other hand, the manually
+written drivers used in OSS-Fuzz did not produce any non-reproducible reports,
+indicating a higher level of stability in handling the state and reliability in terms of crash reproduction.
+
+\begin{figure}[h]
+	\centering
+	\includegraphics[width=12cm]{figures/non_reproducible_crashes.png}
+	\caption{UTopia non-reproducible reports}
+	\label{fig:utopia_non_rep}
+\end{figure}
+
+\begin{table}[h]
+  \centering
+  \label{tab:crashes_utopia}
+  \caption{Summary of Fuzzing Results for UTopia. TR = Total Reports, UR = Unique Reports, TO/OOM = Time out \& out of memory}
+  \begin{tabular}{|c|c|c|c|c|c|c|c|}
+    \hline
+    \multirow{2}{*}{\textbf{Library}} & \multirow{2}{*}{\textbf{Driver}} & \multicolumn{6}{c|}{\textbf{Metrics}} \\
+    \cline{3-8}
+     &  & \textbf{TR} & \textbf{UR} & \textbf{Clusters} & \textbf{Crashes} & \textbf{Leaks} & \textbf{TO/OOM} \\
+    \hline
+    \multirow{7}{*}{assimp} & 1 & 8256 & 77 & 26 & 73 & 3 & 216 \\
+     & 2 & 0 & 0 & 0 & 0 & 0 & 0 \\
+     & 3 & 0 & 0 & 0 & 0 & 0 & 0 \\
+     & 4 & 0 & 0 & 0 & 0 & 0 & 0 \\
+     & 5 & 28237 & 2 & 2 & 1 & 1 & 0 \\
+     & 6 & 30371 & 1 & 1 & 1 & 0 & 0 \\
+     & 7 & 0 & 0 & 0 & 0 & 0 & 0 \\
+    \hline
+    \multirow{6}{*}{libaom} & 1 & 0 & 0 & 0 & 0 & 0 & 0 \\
+     & 2 & 27 & 4 & 2 & 1 & 3 & 15 \\
+     & 3 & 11242 & 4 & 2 & 0 & 4 & 0 \\
+     & 4 & 0 & 0 & 0 & 0 & 0 & 0 \\
+     & 5 & 0 & 0 & 0 & 0 & 0 & 0 \\
+     & 6 & 0 & 0 & 0 & 0 & 0 & 0 \\
+    \hline
+    \multirow{3}{*}{libhtp} & 1 & 33293 & 3 & 1 & 3 & 0 & 0 \\
+     & 2 & 12057 & 4 & 3 & 3 & 1 & 0 \\
+     & 3 & 46097 & 1 & 1 & 1 & 0 & 0 \\
+    \hline
+    \multirow{4}{*}{libvpx} & 1 & 1451 & 1 & 1 & 0 & 1 & 843 \\
+     & 2 & 26 & 1 & 1 & 0 & 1 & 1 \\
+     & 3 & 615 & 8 & 2 & 8 & 0 & 0 \\
+     & 4 & 1479 & 0 & 0 & 0 & 0 & 0 \\
+    \hline
+    \multirow{5}{*}{wabt} & 1 & 51566 & 4 & 1 & 4 & 0 & 2 \\
+     & 2 & 0 & 0 & 0 & 0 & 0 & 0 \\
+     & 3 & 0 & 0 & 0 & 0 & 0 & 0 \\
+     & 4 & 0 & 0 & 0 & 0 & 0 & 0 \\
+     & 5 & 1 & 1 & 1 & 1 & 0 & 0 \\
+    \hline
+  \end{tabular}
+\end{table}
 
 
-1d heatmap: \url{https://stackoverflow.com/questions/45841786/creating-a-1d-heat-map-from-a-line-graph}
+\begin{table}[h]
+  \centering
+  \label{tab:crashes_ossfuzz}
+  \caption{Summary of Fuzzing Results for OSS-Fuzz. TR = Total Reports, UR = Unique Reports, TO/OOM = Time out \& out of memory}
+  \begin{tabular}{|c|c|c|c|c|c|c|c|}
+    \hline
+    \multirow{2}{*}{\textbf{Library}} & \multirow{2}{*}{\textbf{Driver}} & \multicolumn{6}{c|}{\textbf{Metrics}} \\
+    \cline{3-8}
+     &  & \textbf{TR} & \textbf{UR} & \textbf{Clusters} & \textbf{Crashes} & \textbf{Leaks} & \textbf{TO/OOM} \\
+    \hline
+    \multirow{1}{*}{assimp} & assimp\_fuzzer & 3241 & 18 & 12 & 8 & 10 & 0 \\
+    \hline
+    \multirow{1}{*}{libaom} & av1\_dec\_fuzzer & 0 & 0 & 0 & 0 & 0 & 0 \\
+    \hline
+    \multirow{2}{*}{libhtp} & fuzz\_htp & 0 & 0 & 0 & 0 & 0 & 0 \\
+     & fuzz\_diff & 0 & 0 & 0 & 0 & 0 & 0 \\
+    \hline
+    \multirow{2}{*}{libvpx} & vpx\_dec\_fuzzer\_v9 & 0 & 0 & 0 & 0 & 0 & 0 \\
+     & vpx\_dec\_fuzzer\_v8 & 0 & 0 & 0 & 0 & 0 & 0 \\
+    \hline
+    \multirow{5}{*}{wabt} & read\_binary\_interp & 745 & 4 & 3 & 4 & 0 & 0 \\
+     & read\_binary\_ir & 246 & 6 & 3 & 6 & 0 & 0 \\
+     & wasm2wat & 1 & 1 & 1 & 1 & 0 & 0 \\
+     & wat2wasm & 0 & 0 & 0 & 0 & 0 & 0 \\
+     & wasm\_objdump & 13537 & 6 & 4 & 6 & 0 & 0 \\
+    \hline
+  \end{tabular}
+\end{table}
 
-Klees. et al
+\section{Coverage}
+In this section, we present the coverage metrics obtained from the UTopia
+and OSS-Fuzz drivers, highlighting the differences in coverage between
+synthetic and manually written drivers.
 
-TODO:
-How does FuzzGen generate initial seeds? Maybe it's more effective to do it from
-library consumers, rather than primitive constants that UTopia extracts from unit
-tests.
+\autoref{tab:coverage_utopia} and \autoref{tab:coverage_ossfuzz} provide the
+coverage metrics of UTopia and OSS-Fuzz drivers, respectively, at different
+granularities such as regions, functions, lines, and branches. 
+
+These metrics provide valuable insights into the effectiveness of 
+the drivers in exploring the library code. Higher coverage indicates 
+a more thorough exploration of the library, potentially leading to 
+the discovery of bugs and vulnerabilities.
+
+While the coverage achieved by automatically generated drivers 
+may be much lower, it is important to consider the context in 
+which they are used. While we mostly focused on comparing single
+manual and automatic drivers, arguably the primary goal of UTopia is to 
+generate a large number of diverse drivers automatically, 
+leveraging their collective power to uncover potential issues 
+in the target library. In contrast, manually written drivers 
+are crafted with specific knowledge and expertise, which often 
+results in higher coverage but with a limited number of drivers.
+
+\autoref{fig:heatmaps} compares the coverage of specific functions 
+by UTopia and OSS-Fuzz. Each function is associated with a color representing 
+its region coverage percentage. The functions are ordered the same way, 
+and 1D heatmaps are plotted for both UTopia and OSS-Fuzz.
 
 
-Target analysis: \#apis exposed. callbacks? var args? objects?
+
+\begin{figure}[ht]
+    \centering
+    \begin{subfigure}{\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/scale.png}
+        \caption{Color scale}
+    \end{subfigure}%
+    \hfill
+    \begin{subfigure}{0.5\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/coverage_plot_assimp.png}
+    \end{subfigure}%
+    \hfill
+    \begin{subfigure}{0.5\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/coverage_plot_libaom.png}
+    \end{subfigure}
+    \begin{subfigure}{0.5\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/coverage_plot_libhtp.png}
+    \end{subfigure}%
+    \hfill
+    \begin{subfigure}{0.5\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/coverage_plot_libvpx.png}
+    \end{subfigure}%
+    \hfill
+    \begin{subfigure}{0.5\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/coverage_plot_wabt.png}
+    \end{subfigure}
+    \caption{Comparison of per-function coverage for UTopia and OSS-Fuzz}
+    \label{fig:heatmaps}
+\end{figure}
 
 
-Crashes, unique crashes, unreproducible crashes, false positives. 
-Max depth of a fuzzer. \# of APIs, unique APIs used inside driver.
-coverage metrics: basic blocks, \# functions / \#total. 
-\# exposed APIs / \# total.
+
+
+
+
+
+In addition to the comparison between UTopia and OSS-Fuzz drivers, 
+we conducted another experiment to evaluate the impact of using 
+a constant-based starting corpus on the coverage achieved 
+by UTopia fuzzers. UTopia extracts constant values from unit 
+tests to create a simple starting corpus for fuzzing. 
+The hypothesis behind this approach is that using meaningful 
+constant values as initial inputs may lead to a more effective 
+exploration of the library code.
+
+To validate this hypothesis, we ran UTopia fuzzers for 1 hour with 
+and without the starting corpus. The goal was to check whether 
+these initial inputs would result in significant differences in the achieved 
+coverage. \autoref{tab:constant-corpus} presents the coverage metrics obtained from this experiment.
+
+Interestingly, the results indicate that the starting corpus 
+did not give a substantial difference in the coverage. 
+This finding can be explained by the simplistic nature 
+of the constant values extracted from unit tests. In many cases, 
+testers do not invest significant effort in generating 
+complex or meaningful inputs for unit tests, leading to 
+relatively basic constants in the starting corpus that can also easily be 
+generated randomly.
+
+
+
+
+
+
+\begin{table}[h]
+  \centering
+  \caption{Summary of UTopia Coverage}
+  \label{tab:coverage_utopia}
+  \begin{tabular}{|c|c|c|c|c|c|}
+    \hline
+    \multirow{2}{*}{\textbf{Library}} & \multirow{2}{*}{\textbf{Driver}} & \multicolumn{4}{c|}{\textbf{Metrics in \%}} \\
+    \cline{3-6}
+     &  & \textbf{Region Cover} & \textbf{Function Cover} & \textbf{Line Cover} & \textbf{Branch Cover}\\
+    \hline
+    \multirow{1}{*}{assimp} & 1 & 1.32 & 3.51 & 1.66 & 0.82  \\
+     & 2 & 0.14 & 0.44 & 0.17 & 0.05 \\
+     & 3 & 1.47 & 4.21 & 1.76 & 0.92  \\
+     & 4 & 2.47 & 5.06 & 2.60 & 1.77 \\
+     & 5 & 2.48 & 5.06 & 2.62 & 1.78 \\
+     & 6 & 1.14 & 3.78 & 1.33 & 0.66  \\
+     & 7 & 0.14 & 0.58 & 0.20 & 0.06 \\
+     \hline
+     & TOTAL & 3.77 & 6.75 & 4.03 & 2.85  \\
+    \hline
+    \multirow{1}{*}{libaom} & 1 & 0.48 & 0.99 & 0.23 & 0.25 \\
+     & 2 & 22.63 & 24.04 & 18.10 & 17.87 \\
+     & 3 & 6.66 & 3.57 & 3.31 & 3.80  \\
+     & 4 & 0.14 & 0.65 & 0.13 & 0.06 \\
+     & 5 & 0.17 & 0.72 & 0.15 & 0.10 \\
+     & 6 & 0.19 & 0.86 & 0.17 & 0.10  \\
+     \hline
+     & TOTAL & 22.89 & 24.39 & 18.47 & 18.12  \\
+    \hline
+    \multirow{1}{*}{libhtp} & 1 & 0.48 & 4.37 & 1.51 & 0.15 \\
+     & 2 & 4.19 & 13.59 & 8.51 & 3.77 \\
+     & 3 & 0.67 & 5.44 & 1.92 & 0.24  \\
+     \hline
+     & TOTAL & 5.04 & 16.22 & 9.30 & 4.17  \\
+    \hline
+    \multirow{1}{*}{libvpx} & 1 & 1.17 & 3.97 & 0.83 & 0.55 \\
+     & 2 & 0.21 & 1.39 & 0.24 & 0.09 \\
+     & 3 & 7.17 & 9.66 & 5.45 & 4.21  \\
+     & 4 & 0.92 & 3.09 & 0.61 & 0.37 \\
+     \hline
+     & TOTAL & 8.19 & 12.35 & 6.13 & 4.66  \\
+    \hline
+    \multirow{1}{*}{wabt} & 1 & 7.67 & 8.54 & 8.46 & 14.35 \\
+     & 2 & 0.25 & 1.03 & 0.89 & 0.13 \\
+     & 3 & 0.59 & 1.93 & 1.24 & 0.23  \\
+     & 4 & 0.75 & 1.80 & 1.15 & 0.26 \\
+     & 5 & 3.20 & 4.85 & 11.51 & 2.76 \\
+     \hline
+     & TOTAL & 9.98 & 13.17 & 19.17 & 15.86  \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\begin{table}[h]
+  \centering
+  \caption{Summary of OSS-Fuzz Coverage}
+  \label{tab:coverage_ossfuzz}
+  \begin{tabular}{|c|c|c|c|c|c|}
+    \hline
+    \multirow{2}{*}{\textbf{Library}} & \multirow{2}{*}{\textbf{Driver}} & \multicolumn{4}{c|}{\textbf{Metrics in \%}} \\
+    \cline{3-6}
+     &  & \textbf{Region Cover} & \textbf{Function Cover} & \textbf{Line Cover} & \textbf{Branch Cover}\\
+    \hline
+    \multirow{1}{*}{assimp} & 1 & 9.15 & 14.49 & 7.39 & 6.65  \\
+     \hline
+     & TOTAL & 9.15 & 14.49 & 7.39 & 6.65  \\
+    \hline
+    \multirow{1}{*}{libaom} & 1 & 62.66 & 56.35 & 55.96 & 59.85 \\
+     \hline
+     & TOTAL & 62.66 & 56.35 & 55.96 & 59.85  \\
+    \hline
+    \multirow{1}{*}{libhtp} & 1 & 32.56 & 47.26 & 38.41 & 34.78 \\
+     & 2 & 12.55 & 10.38 & 12.37 & 11.43 \\
+     \hline
+     & TOTAL & 38.73 & 52.40 & 44.69 & 40.76  \\
+    \hline
+    \multirow{1}{*}{libvpx} & 1 & 41.20 & 19.91 & 21.30 & 41.54 \\
+     & 2 & 61.39 & 59.73 & 58.48 & 63.70 \\
+     \hline
+     & TOTAL & 63.07 & 61.03 & 59.76 & 63.67 \\
+    \hline
+    \multirow{1}{*}{wabt} & 1 & 53.27 & 34.59 & 40.98 & 45.61 \\
+     & 2 & 72.07 & 45.50 & 60.51 & 74.84 \\
+     & 3 & 71.99 & 57.41 & 63.52 & 73.58 \\
+     & 4 & 58.28 & 38.40 & 50.94 & 65.90 \\
+     & 5 & 14.24 & 22.57 & 30.29 & 20.70 \\
+     \hline
+     & TOTAL & 77.06 & 72.45 & 78.66 & 86.22  \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Coverage with and without Constant-based Starting Corpus after 5 iterations}
+  \label{tab:constant-corpus}
+  \begin{tabular}{lcc|cc}
+    \hline
+    Library & \multicolumn{2}{c}{With Starting Corpus} & \multicolumn{2}{c}{Without Starting Corpus} \\
+    \hline
+    & Coverage & Stdev & Coverage & Stdev \\
+    \hline
+    assimp & 4.07\% & 0.256 & 3.77\% & 0.312 \\
+    libaom & 23.2\% & 0.831 & 22.89\% & 0.456 \\
+    libhtp & 5.76\% & 0.352 & 5.04\% & 0.882 \\
+    libvpx & 8.16\% & 0.628 & 8.19\% & 0.773 \\
+    wabt & 10.2\% & 0.772 & 9.98\% & 0.762 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+
+
+\section{Driver Complexity}
+
+In this chapter, we examine the complexity of the drivers used in our evaluation.
+\autoref{tab:drivers_apis_utopia}  and \autoref{tab:drivers_apis_ossfuzz} present the driver 
+complexity metrics for each driver: number of APIs and number of unique APIs. 
+We can observe that the complexity of manually written drivers, 
+with the exception of libhtp, is generally not too high. 
+These drivers have a similar level of complexity as UTopia drivers. 
+However, as we saw in terms of coverage, it becomes evident that OSSFuzz 
+drivers outperform UTopia drivers. This finding supports our hypothesis 
+that unit tests, although important for functional testing, may often 
+focus on a specific part of the codebase, resulting in limited coverage. 
+On the other hand, library developers, with their comprehensive understanding 
+of the library, can strategically select a small number of API calls that 
+can achieve high coverage across various code paths.
+
+\autoref{fig:max_depths} shows the maximum depths at which each function
+was called for both UTopia and OSS-Fuzz. It is evident that manually
+written drivers in OSS-Fuzz demonstrate better reach. 
+
+
+\begin{figure}[h]
+	\centering
+	\includegraphics[width=12cm]{figures/max_depths.png}
+	\caption{Maximum depths of each function. U = UTopia, O = OSS-Fuzz}
+	\label{fig:max_depths}
+\end{figure}
+
+
+
+\begin{table}[h]
+  \centering
+  \caption{UTopia driver complexity}
+  \label{tab:drivers_apis_utopia}
+
+  \begin{tabular}{|c|c|c|c|}
+    \hline
+    \multirow{2}{*}{\textbf{Library}} & \multirow{2}{*}{\textbf{Driver}} & \multicolumn{2}{c|}{\textbf{Metrics}} \\
+    \cline{3-4}
+     &  & \textbf{Number of APIs} & \textbf{Number of unique APIs} \\
+    \hline
+    \multirow{7}{*}{assimp} & 1 & 1 & 1 \\
+     & 2 & 1 & 1   \\
+     & 3 & 1 & 1   \\
+     & 4 & 1 & 1  \\
+     & 5 & 1 & 1   \\
+     & 6 & 5 & 4   \\
+     & 7 & 3 & 2   \\
+    \hline
+    \multirow{6}{*}{libaom} & 1 & 3 & 3 \\
+     & 2 & 4 & 4  \\
+     & 3 & 8 & 4  \\
+     & 4 & 3 & 3  \\
+     & 5 & 1 & 1  \\
+     & 6 & 1 & 1 \\
+    \hline
+    \multirow{3}{*}{libhtp} & 1 & 1 & 1 \\
+     & 2 & 10 & 5  \\
+     & 3 & 4 & 4 \\
+    \hline
+    \multirow{4}{*}{libvpx} & 1 & 14 & 7 \\
+     & 2 & 5 & 5  \\
+     & 3 & 4 & 3  \\
+     & 4 & 2 & 2 \\
+    \hline
+    \multirow{5}{*}{wabt} & 1 & 4 & 1 \\
+     & 2 & 2 & 2  \\
+     & 3 & 3 & 3  \\
+     & 4 & 4 & 4  \\
+     & 5 & 3 & 3 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+
+
+
+
+
+\begin{table}[h]
+  \centering
+  \caption{OSS-Fuzz driver complexity}
+  \label{tab:drivers_apis_ossfuzz}
+  \begin{tabular}{|c|c|c|c|}
+    \hline
+    \multirow{2}{*}{\textbf{Library}} & \multirow{2}{*}{\textbf{Driver}} & \multicolumn{2}{c|}{\textbf{Metrics}} \\
+    \cline{3-4}
+     &  & \textbf{Number of APIs} & \textbf{Number of unique APIs}  \\
+    \hline
+    \multirow{1}{*}{assimp} & assimp\_fuzzer & 4 & 4  \\
+    \hline
+    \multirow{1}{*}{libaom} & av1\_dec\_fuzzer & 6 & 6  \\
+    \hline
+    \multirow{2}{*}{libhtp} & fuzz\_htp & 33 & 25 \\
+     & fuzz\_diff & 47 & 27 \\
+    \hline
+    \multirow{2}{*}{libvpx} & vpx\_dec\_fuzzer\_v9 & 7 & 7  \\
+     & vpx\_dec\_fuzzer\_v8 & 7 & 7 \\
+    \hline
+    \multirow{5}{*}{wabt} & read\_binary\_interp & 2 & 2  \\
+     & read\_binary\_ir & 2 & 2 \\
+     & wasm2wat & 1 & 1  \\
+     & wat2wasm & 3 & 3 \\
+     & wasm\_objdump & 5 & 1 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+
 
 
 
@@ -944,11 +1405,15 @@ coverage metrics: basic blocks, \# functions / \#total.
 We have explored the state-of-the-art in automatic driver generation
 for library fuzzing, focusing on developing a methodology and framework
 for evaluating synthetic drivers. We began by discussing the complexities 
-of library fuzzing, including the need for the deep understanding of the 
+of library fuzzing, including the need for a deep understanding of the 
 library APIs, seed selection, callback handling, error handling, and 
 state management. These challenges highlight the importance of 
 developing automated solutions and represent the main issues these tools 
-need to tackle. 
+need to tackle. While synthetic drivers may not match the reach and 
+efficiency of manually written ones, the advantage of tools like UTopia 
+is their ability to generate a large number of drivers. Despite the 
+individual drivers', the cumulative exploration power of a vast number of 
+drivers can rival that of a few manually written ones.
 
 In conclusion, our project has demonstrated the value and potential 
 of automatic driver generation for library fuzzing. We believe that 
